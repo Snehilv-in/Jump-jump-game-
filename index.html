@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Jump Jump ! - Final Mission</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;900&display=swap');
+        
+        /* Strict global prevention of text selection and system menus */
+        * {
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            outline: none;
+        }
+
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            overflow: hidden; background-color: #000;
+            font-family: 'Outfit', sans-serif;
+            touch-action: none;
+        }
+        
+        #game-container {
+            position: relative; width: 100vw; height: 100vh;
+            display: flex; justify-content: center; align-items: center;
+            background: #000;
+        }
+
+        canvas { 
+            display: block; 
+            image-rendering: auto; 
+            background: #000;
+        }
+
+        .glass-ui {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+
+        .menu-overlay {
+            position: absolute; inset: 0; 
+            display: none; flex-direction: column;
+            justify-content: center; align-items: center;
+            z-index: 100; text-align: center;
+        }
+
+        .btn-action {
+            background: #fff; color: #000;
+            padding: 14px 40px; border-radius: 50px;
+            font-weight: 900; letter-spacing: 1px;
+            cursor: pointer; transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .btn-action:hover { background: #e2e8f0; transform: translateY(-2px); }
+        .btn-action:active { transform: scale(0.95); }
+
+        .control-btn {
+            width: 75px; height: 75px; border-radius: 20px;
+            display: flex; justify-content: center; align-items: center;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            pointer-events: auto;
+            transition: background 0.1s;
+        }
+        .control-btn:active { background: rgba(255, 255, 255, 0.2); }
+
+        .battery {
+            width: 24px; height: 12px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 3px; position: relative; margin-right: 4px;
+        }
+        .battery::after {
+            content: ''; position: absolute; right: -4px; top: 2px;
+            width: 2px; height: 4px; background: rgba(255,255,255,0.3);
+            border-radius: 0 1px 1px 0;
+        }
+        .battery-fill { height: 100%; background: #10b981; transition: width 0.3s ease; width: 100%; }
+        .battery-empty .battery-fill { width: 0% !important; }
+    </style>
+</head>
+<body class="select-none">
+
+<div id="game-container" class="select-none">
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- UI Overlay -->
+    <div id="ui-layer" class="absolute inset-0 pointer-events-none flex flex-col justify-between p-6 select-none">
+        <div class="flex justify-between items-start">
+            <div class="flex flex-col gap-2">
+                <div class="glass-ui px-4 py-2 rounded-2xl flex items-center gap-3">
+                    <span class="text-white/40 text-[10px] font-black uppercase">Sector</span>
+                    <span id="hud-level" class="text-xl font-black">01</span>
+                </div>
+                <div id="hud-batteries" class="glass-ui px-3 py-2 rounded-xl flex items-center gap-2">
+                    <div class="battery"><div class="battery-fill"></div></div>
+                    <div class="battery"><div class="battery-fill"></div></div>
+                    <div class="battery"><div class="battery-fill"></div></div>
+                </div>
+            </div>
+            
+            <div class="flex gap-2">
+                <div id="fullscreen-btn" class="glass-ui w-12 h-12 rounded-2xl flex justify-center items-center pointer-events-auto cursor-pointer" title="Toggle Fullscreen">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+                </div>
+                <div id="pause-btn" class="glass-ui w-12 h-12 rounded-2xl flex justify-center items-center pointer-events-auto cursor-pointer">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex justify-between items-end pb-4">
+            <div class="flex gap-4">
+                <div id="btn-left" class="control-btn select-none"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><path d="M15 18l-6-6 6-6"/></svg></div>
+                <div id="btn-right" class="control-btn select-none"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><path d="M9 18l6-6-6-6"/></svg></div>
+            </div>
+            <div id="btn-jump" class="control-btn w-32 bg-white/10 text-white font-black uppercase text-xs tracking-widest select-none">Jump</div>
+        </div>
+    </div>
+
+    <!-- Menus -->
+    <div id="start-menu" class="menu-overlay select-none" style="display: flex; background: rgba(0,0,0,0.95);">
+        <h1 class="text-6xl font-black text-white mb-2 tracking-tighter">JUMP<br><span class="text-blue-500">JUMP !</span></h1>
+        <p class="text-white/30 text-[10px] tracking-[0.5em] uppercase mb-12">Precision Platformer</p>
+        <button id="play-btn" class="btn-action select-none">START MISSION</button>
+    </div>
+
+    <div id="win-menu" class="menu-overlay bg-black/80 backdrop-blur-md select-none">
+        <h2 class="text-4xl font-black text-white mb-8">PORTAL REACHED</h2>
+        <div id="battery-msg" class="text-green-400 text-[10px] uppercase font-bold mb-6 hidden">+1 Battery Recovered</div>
+        <button id="next-btn" class="btn-action select-none">NEXT SECTOR</button>
+    </div>
+
+    <div id="fail-menu" class="menu-overlay bg-red-950/90 backdrop-blur-md select-none">
+        <h2 class="text-5xl font-black text-white mb-2">SYSTEM FAILURE</h2>
+        <p class="text-white/50 text-sm mb-12">Battery Power Depleted</p>
+        <button id="retry-btn" class="btn-action select-none">REBOOT SYSTEM</button>
+    </div>
+
+    <div id="pause-menu" class="menu-overlay bg-black/60 backdrop-blur-sm select-none">
+        <h2 class="text-4xl font-black text-white mb-8">PAUSED</h2>
+        <button id="resume-btn" class="btn-action select-none">RESUME</button>
+    </div>
+
+    <div id="victory-screen" class="menu-overlay bg-black/95 select-none">
+        <h1 class="text-7xl font-black text-white mb-2">MISSION</h1>
+        <h1 class="text-7xl font-black text-blue-500 mb-6">COMPLETE</h1>
+        <p class="text-white/40 mb-12">All sectors stabilized. Great work, Explorer.</p>
+        <button id="restart-btn" class="btn-action select-none">PLAY AGAIN</button>
+    </div>
+</div>
+
+<script>
+/** * AUDIO SYNTHESIZER */
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+function playSound(type) {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    const now = audioCtx.currentTime;
+
+    switch(type) {
+        case 'jump':
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(150, now);
+            osc.frequency.exponentialRampToValueAtTime(400, now + 0.1);
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+            osc.start(); osc.stop(now + 0.1);
+            break;
+        case 'damage':
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(100, now);
+            osc.frequency.linearRampToValueAtTime(50, now + 0.3);
+            gain.gain.setValueAtTime(0.2, now);
+            gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+            osc.start(); osc.stop(now + 0.3);
+            break;
+        case 'recharge':
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(300, now);
+            osc.frequency.exponentialRampToValueAtTime(600, now + 0.2);
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+            osc.start(); osc.stop(now + 0.2);
+            break;
+        case 'switch':
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(800, now);
+            gain.gain.setValueAtTime(0.05, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+            osc.start(); osc.stop(now + 0.05);
+            break;
+        case 'win':
+            [440, 554, 659].forEach((f, i) => {
+                const o = audioCtx.createOscillator();
+                const g = audioCtx.createGain();
+                o.connect(g); g.connect(audioCtx.destination);
+                o.frequency.setValueAtTime(f, now + i * 0.1);
+                g.gain.setValueAtTime(0.05, now + i * 0.1);
+                g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.1 + 0.3);
+                o.start(now + i * 0.1); o.stop(now + i * 0.1 + 0.3);
+            });
+            break;
+    }
+}
+
+/** * GAME CORE */
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d', { alpha: false });
+const vWidth = 1000;
+const vHeight = 562;
+
+let state = {
+    running: false,
+    paused: false,
+    level: 1,
+    maxLevels: 10,
+    camX: 0,
+    gatesActivated: new Set(),
+    time: 0,
+    batteries: 3
+};
+
+let input = { left: false, right: false, jump: false, jumpPressed: false };
+
+const levelData = [
+    { platforms: [[0, 500, 1500, 100], [600, 380, 200, 20]], mechanisms: [{ x: 680, y: 370, w: 40, h: 10, id: 'G1' }], gates: [{ x: 1000, y: 0, w: 30, h: 500, id: 'G1' }], moving: [], goal: 1300 },
+    { platforms: [[0, 500, 400, 100], [1100, 500, 700, 100]], mechanisms: [{ x: 300, y: 490, w: 40, h: 10, id: 'G2' }], gates: [{ x: 1400, y: 0, w: 30, h: 500, id: 'G2' }], moving: [{ x: 600, y: 450, w: 150, h: 20, rx: 150, s: 0.01, axis: 'y' }], goal: 1600 },
+    { platforms: [[0, 500, 400, 100], [450, 300, 200, 20], [750, 150, 200, 20], [1100, 450, 600, 150]], mechanisms: [{ x: 830, y: 140, w: 40, h: 10, id: 'G3' }], gates: [{ x: 1300, y: 0, w: 30, h: 450, id: 'G3' }], moving: [], goal: 1500 },
+    { platforms: [[0, 500, 300, 100], [1200, 500, 600, 100]], mechanisms: [{ x: 150, y: 490, w: 40, h: 10, id: 'G4' }], gates: [{ x: 1500, y: 0, w: 30, h: 500, id: 'G4' }], moving: [{ x: 600, y: 480, w: 120, h: 20, rx: 300, s: 0.012, axis: 'x' }], goal: 1700 },
+    { platforms: [[0, 500, 300, 100], [400, 350, 150, 20], [700, 200, 150, 20], [1000, 500, 800, 100]], mechanisms: [{ x: 750, y: 190, w: 40, h: 10, id: 'G5' }], gates: [{ x: 1300, y: 0, w: 30, h: 500, id: 'G5' }], moving: [{ x: 400, y: 450, w: 120, h: 20, rx: 100, s: 0.02, axis: 'y' }], goal: 1600 },
+    { platforms: [[0, 500, 200, 100], [500, 400, 100, 20], [800, 300, 100, 20], [1200, 500, 600, 100]], mechanisms: [{ x: 830, y: 290, w: 40, h: 10, id: 'G6' }], gates: [{ x: 1500, y: 0, w: 30, h: 500, id: 'G6' }], moving: [], goal: 1650 },
+    { platforms: [[0, 500, 400, 100], [1300, 500, 600, 100]], mechanisms: [{ x: 100, y: 490, w: 40, h: 10, id: 'G7' }], gates: [{ x: 1600, y: 0, w: 30, h: 500, id: 'G7' }], moving: [{ x: 700, y: 400, w: 100, h: 20, rx: 200, s: 0.015, axis: 'x' }, { x: 1000, y: 300, w: 100, h: 20, rx: 150, s: 0.01, axis: 'y' }], goal: 1800 },
+    { platforms: [[0, 500, 300, 100], [400, 450, 60, 20], [550, 400, 60, 20], [700, 350, 60, 20], [850, 300, 60, 20], [1100, 500, 500, 100]], mechanisms: [{ x: 860, y: 290, w: 40, h: 10, id: 'G8' }], gates: [{ x: 1400, y: 0, w: 30, h: 500, id: 'G8' }], moving: [], goal: 1500 },
+    { platforms: [[0, 500, 200, 100], [1200, 500, 800, 100]], mechanisms: [{ x: 1300, y: 490, w: 40, h: 10, id: 'G9' }], gates: [{ x: 1800, y: 0, w: 30, h: 500, id: 'G9' }], moving: [{ x: 600, y: 450, w: 100, h: 20, rx: 400, s: 0.025, axis: 'x' }], goal: 1900 },
+    { platforms: [[0, 500, 300, 100], [400, 300, 100, 20], [700, 200, 100, 20], [1000, 300, 100, 20], [1300, 500, 1000, 100]], mechanisms: [{ x: 730, y: 190, w: 40, h: 10, id: 'G10' }], gates: [{ x: 1800, y: 0, w: 30, h: 500, id: 'G10' }], moving: [{ x: 500, y: 450, w: 80, h: 20, rx: 100, s: 0.03, axis: 'y' }, { x: 1200, y: 450, w: 80, h: 20, rx: 100, s: 0.03, axis: 'y' }], goal: 2100 }
+];
+
+const player = {
+    x: 100, y: 100, w: 32, h: 48, vx: 0, vy: 0,
+    speed: 0.7, friction: 0.85, gravity: 0.7, jump: -14.5,
+    grounded: false, coyote: 0, canDoubleJump: false, facing: 1, platformVx: 0,
+    animFrame: 0
+};
+
+function updateHUD() {
+    const containers = document.querySelectorAll('#hud-batteries .battery');
+    containers.forEach((c, i) => {
+        if (i < state.batteries) c.classList.remove('battery-empty');
+        else c.classList.add('battery-empty');
+    });
+}
+
+function damage() {
+    state.batteries--;
+    updateHUD();
+    playSound('damage');
+    if (state.batteries <= 0) {
+        state.running = false;
+        document.getElementById('fail-menu').style.display = 'flex';
+    } else {
+        respawn();
+    }
+}
+
+function respawn() {
+    player.x = 100; player.y = 100;
+    player.vx = 0; player.vy = 0;
+    player.platformVx = 0;
+    state.camX = 0;
+}
+
+function resolveCollision(p, o, isMoving = false, mVelX = 0) {
+    if (p.x < o.x + o.w && p.x + p.w > o.x && p.y < o.y + o.h && p.y + p.h > o.y) {
+        const overlapX = Math.min(p.x + p.w - o.x, o.x + o.w - p.x);
+        const overlapY = Math.min(p.y + p.h - o.y, o.y + o.h - p.y);
+        
+        if (overlapX < overlapY) {
+            if (p.x + p.w / 2 < o.x + o.w / 2) p.x = o.x - p.w; else p.x = o.x + o.w;
+            p.vx = 0;
+        } else {
+            if (p.y + p.h / 2 < o.y + o.h / 2) {
+                p.y = o.y - p.h; p.vy = 0; p.grounded = true;
+                if(isMoving) p.platformVx = mVelX;
+            } else {
+                p.y = o.y + o.h; p.vy = Math.max(0, p.vy);
+            }
+        }
+    }
+}
+
+function update() {
+    if (!state.running || state.paused) return;
+    state.time += 0.016;
+
+    if (input.left) { player.vx -= player.speed; player.facing = -1; player.animFrame += 0.15; }
+    else if (input.right) { player.vx += player.speed; player.facing = 1; player.animFrame += 0.15; }
+    else { player.vx *= player.friction; player.animFrame = 0; }
+    
+    player.vx = Math.min(Math.max(player.vx, -8), 8);
+    player.x += (player.vx + player.platformVx);
+    player.platformVx *= 0.8;
+    player.vy += player.gravity;
+    
+    if (player.grounded) { player.coyote = 10; player.canDoubleJump = true; } else { player.coyote--; }
+
+    if (input.jump && !input.jumpPressed) {
+        if (player.coyote > 0) {
+            player.vy = player.jump; player.grounded = false; player.coyote = 0; playSound('jump');
+        } else if (player.canDoubleJump) {
+            player.vy = player.jump * 0.85; player.canDoubleJump = false; playSound('jump');
+        }
+        input.jumpPressed = true;
+    }
+    if (!input.jump) input.jumpPressed = false;
+    player.y += player.vy;
+
+    const lvl = levelData[state.level - 1];
+    player.grounded = false;
+    player.platformVx = 0;
+
+    lvl.platforms.forEach(p => resolveCollision(player, {x: p[0], y: p[1], w: p[2], h: p[3]}));
+    lvl.gates.forEach(g => { if (!state.gatesActivated.has(g.id)) resolveCollision(player, g); });
+    
+    lvl.moving.forEach(m => {
+        let curX = m.x, curY = m.y, velX = 0;
+        if (m.axis === 'y') curY += Math.sin(state.time * 60 * m.s) * m.rx;
+        else {
+            const nX = m.x + Math.sin((state.time + 0.016) * 60 * m.s) * m.rx;
+            curX += Math.sin(state.time * 60 * m.s) * m.rx;
+            velX = nX - curX;
+        }
+        resolveCollision(player, {x: curX, y: curY, w: m.w, h: m.h}, true, velX);
+    });
+
+    lvl.mechanisms.forEach(m => {
+        if (player.x < m.x + m.w && player.x + player.w > m.x && player.y + player.h > m.y && player.y < m.y + m.h) {
+            if (!state.gatesActivated.has(m.id)) { state.gatesActivated.add(m.id); playSound('switch'); }
+        }
+    });
+
+    if (player.y > vHeight + 100) damage();
+    if (player.x > lvl.goal) {
+        state.running = false;
+        playSound('win');
+        if (state.level >= state.maxLevels) {
+            document.getElementById('victory-screen').style.display = 'flex';
+        } else {
+            if (state.batteries < 3) {
+                state.batteries++; updateHUD(); playSound('recharge');
+                document.getElementById('battery-msg').classList.remove('hidden');
+            } else {
+                document.getElementById('battery-msg').classList.add('hidden');
+            }
+            document.getElementById('win-menu').style.display = 'flex';
+        }
+    }
+
+    const targetCamX = player.x - vWidth/3;
+    state.camX += (targetCamX - state.camX) * 0.1;
+    if (state.camX < 0) state.camX = 0;
+}
+
+function drawCharacter(ctx, p) {
+    ctx.save();
+    const bx = p.x, by = p.y, bw = p.w, bh = p.h;
+    const legOffset = Math.sin(p.animFrame) * 4;
+
+    ctx.fillStyle = '#222';
+    if (!p.grounded) {
+        ctx.fillRect(bx + 4, by + bh - 10, 8, 8);
+        ctx.fillRect(bx + bw - 12, by + bh - 14, 8, 8);
+    } else {
+        ctx.fillRect(bx + 4, by + bh - 8 + legOffset, 8, 8);
+        ctx.fillRect(bx + bw - 12, by + bh - 8 - legOffset, 8, 8);
+    }
+
+    ctx.fillStyle = '#475569';
+    if (p.facing === 1) ctx.fillRect(bx - 6, by + 12, 10, 24);
+    else ctx.fillRect(bx + bw - 4, by + 12, 10, 24);
+
+    ctx.fillStyle = '#f8fafc';
+    ctx.beginPath(); ctx.roundRect(bx, by + 10, bw, bh - 18, 6); ctx.fill();
+
+    ctx.fillStyle = '#3b82f6';
+    ctx.fillRect(bx + 10, by + 18, bw - 20, 4);
+
+    ctx.fillStyle = '#cbd5e1';
+    ctx.beginPath(); ctx.roundRect(bx - 2, by - 2, bw + 4, 18, 8); ctx.fill();
+
+    ctx.fillStyle = '#0f172a';
+    if (p.facing === 1) ctx.fillRect(bx + bw - 20, by + 2, 18, 10);
+    else ctx.fillRect(bx + 2, by + 2, 18, 10);
+
+    if (!p.grounded && p.vy < 0) {
+        ctx.fillStyle = '#60a5fa';
+        const fh = 10 + Math.random() * 10;
+        ctx.fillRect(bx + (p.facing === 1 ? -4 : bw - 1), by + 34, 5, fh);
+    }
+    ctx.restore();
+}
+
+function draw() {
+    ctx.fillStyle = '#050505'; ctx.fillRect(0, 0, vWidth, vHeight);
+    ctx.save(); ctx.translate(-Math.floor(state.camX), 0);
+    const lvl = levelData[state.level - 1];
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.02)';
+    for(let i=0; i<4000; i+=200) { ctx.strokeRect(i, 0, 200, vHeight); }
+
+    lvl.platforms.forEach(p => {
+        ctx.fillStyle = '#111'; ctx.fillRect(p[0], p[1], p[2], p[3]);
+        ctx.fillStyle = '#222'; ctx.fillRect(p[0], p[1], p[2], 3);
+    });
+
+    lvl.gates.forEach(g => {
+        if (!state.gatesActivated.has(g.id)) {
+            ctx.fillStyle = '#ef4444'; ctx.globalAlpha = 0.15; ctx.fillRect(g.x-5, g.y, g.w+10, g.h);
+            ctx.globalAlpha = 0.8; ctx.fillRect(g.x, g.y, g.w, g.h); ctx.globalAlpha = 1.0;
+        }
+    });
+
+    lvl.mechanisms.forEach(m => {
+        const active = state.gatesActivated.has(m.id);
+        ctx.fillStyle = active ? '#10b981' : '#3b82f6';
+        ctx.fillRect(m.x, active ? m.y+6 : m.y, m.w, active ? m.h-6 : m.h);
+    });
+
+    lvl.moving.forEach(m => {
+        let curX = m.x, curY = m.y;
+        if (m.axis === 'y') curY += Math.sin(state.time * 60 * m.s) * m.rx;
+        else curX += Math.sin(state.time * 60 * m.s) * m.rx;
+        ctx.fillStyle = '#6366f1'; ctx.beginPath(); ctx.roundRect(curX, curY, m.w, m.h, 4); ctx.fill();
+        ctx.fillStyle = '#818cf8'; ctx.fillRect(curX, curY, m.w, 3);
+    });
+
+    ctx.fillStyle = '#10b981'; ctx.shadowBlur = 20; ctx.shadowColor = '#10b981';
+    ctx.fillRect(lvl.goal, 0, 15, vHeight); ctx.shadowBlur = 0;
+
+    drawCharacter(ctx, player);
+    ctx.restore();
+}
+
+function gameLoop() { update(); draw(); requestAnimationFrame(gameLoop); }
+
+window.onload = () => {
+    const resize = () => {
+        const scale = Math.min(window.innerWidth / vWidth, window.innerHeight / vHeight);
+        canvas.width = vWidth; canvas.height = vHeight;
+        canvas.style.width = (vWidth * scale) + 'px'; canvas.style.height = (vHeight * scale) + 'px';
+    };
+    window.addEventListener('resize', resize);
+    resize();
+
+    // Context menu prevention
+    window.oncontextmenu = (e) => {
+        if (e.target.id !== 'gameCanvas') e.preventDefault();
+    };
+
+    const toggleFullscreen = () => {
+        const container = document.getElementById('game-container');
+        if (!document.fullscreenElement) {
+            container.requestFullscreen().catch(err => {
+                console.warn(`Error attempting to enable fullscreen: ${err.message}`);
+            });
+        } else {
+            document.exitFullscreen();
+        }
+    };
+    document.getElementById('fullscreen-btn').onclick = toggleFullscreen;
+
+    document.getElementById('play-btn').onclick = () => { 
+        document.getElementById('start-menu').style.display = 'none'; 
+        state.running = true; respawn(); 
+    };
+    
+    document.getElementById('next-btn').onclick = () => {
+        state.level++; 
+        document.getElementById('hud-level').innerText = String(state.level).padStart(2, '0');
+        document.getElementById('win-menu').style.display = 'none'; 
+        state.gatesActivated = new Set(); respawn(); state.running = true;
+    };
+    
+    document.getElementById('retry-btn').onclick = () => {
+        state.batteries = 3; updateHUD(); 
+        document.getElementById('fail-menu').style.display = 'none';
+        state.level = 1; document.getElementById('hud-level').innerText = "01";
+        state.gatesActivated = new Set(); respawn(); state.running = true;
+    };
+
+    document.getElementById('restart-btn').onclick = () => {
+        state.level = 1; state.batteries = 3; updateHUD();
+        document.getElementById('victory-screen').style.display = 'none';
+        document.getElementById('hud-level').innerText = "01";
+        state.gatesActivated = new Set(); respawn(); state.running = true;
+    };
+
+    document.getElementById('pause-btn').onclick = () => { 
+        state.paused = !state.paused; 
+        document.getElementById('pause-menu').style.display = state.paused ? 'flex' : 'none'; 
+    };
+    document.getElementById('resume-btn').onclick = () => { 
+        state.paused = false; document.getElementById('pause-menu').style.display = 'none'; 
+    };
+    
+    const bind = (id, k) => {
+        const el = document.getElementById(id);
+        el.onpointerdown = (e) => { 
+            e.preventDefault(); 
+            // Prevent text selection on parent containers
+            window.getSelection().removeAllRanges();
+            input[k] = true; 
+        };
+        el.onpointerup = (e) => { e.preventDefault(); input[k] = false; };
+        el.onpointerleave = (e) => { e.preventDefault(); input[k] = false; };
+    };
+    bind('btn-left', 'left'); bind('btn-right', 'right'); bind('btn-jump', 'jump');
+
+    window.addEventListener('keydown', (e) => { 
+        if(e.code === 'ArrowLeft' || e.code === 'KeyA') input.left = true; 
+        if(e.code === 'ArrowRight' || e.code === 'KeyD') input.right = true; 
+        if(e.code === 'ArrowUp' || e.code === 'Space' || e.code === 'KeyW') input.jump = true; 
+    });
+    window.addEventListener('keyup', (e) => { 
+        if(e.code === 'ArrowLeft' || e.code === 'KeyA') input.left = false; 
+        if(e.code === 'ArrowRight' || e.code === 'KeyD') input.right = false; 
+        if(e.code === 'ArrowUp' || e.code === 'Space' || e.code === 'KeyW') input.jump = false; 
+    });
+
+    gameLoop();
+};
+</script>
+</body>
+</html>
